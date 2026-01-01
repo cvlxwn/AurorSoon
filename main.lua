@@ -1,63 +1,33 @@
 --[[
-    AURORA SOON - BSS ULTIMATE (PRO VERSION)
-    Webhook Integrated: https://discord.com/api/webhooks/1274243292011298959/...
+    AURORA SOON - BSS ULTIMATE (FIXED MOVEMENT)
 ]]
 
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
-local HttpService = game:GetService("HttpService")
-local TweenService = game:GetService("TweenService")
 local Player = game.Players.LocalPlayer
+local Character = Player.Character or Player.CharacterAdded:Wait()
+local Humanoid = Character:WaitForChild("Humanoid")
 
 -- // КОНФИГУРАЦИЯ //
 getgenv().Config = {
     Enabled = false,
     AutoDig = false,
     CollectTokens = false,
-    WalkSpeed = 5,
+    SpeedValue = 30, -- Стандартная скорость в Roblox - 16
     SelectedField = "Clover Field",
     Webhook = "https://discord.com/api/webhooks/1274243292011298959/oRJnfq3plUGNIsudT6QU-6a5ELAS_CRQcJ26dIgpTVU92_MeUYMdwxjRfN8jW6zlD1Bo"
 }
 
--- // СИСТЕМА ЛОГИРОВАНИЯ (БАЗА ДАННЫХ) //
-local function SendLog()
-    pcall(function()
-        local data = {
-            ["embeds"] = {{
-                ["title"] = "🚀 AuroraSoon: Новый запуск!",
-                ["color"] = 0x00FFAA,
-                ["fields"] = {
-                    {["name"] = "Никнейм", ["value"] = "```" .. Player.Name .. "```", ["inline"] = true},
-                    {["name"] = "ID Игрока", ["value"] = "```" .. tostring(Player.UserId) .. "```", ["inline"] = true},
-                    {["name"] = "Возраст аккаунта", ["value"] = Player.AccountAge .. " дней", ["inline"] = true},
-                    {["name"] = "Мед (Honey)", ["value"] = tostring(Player.CoreStats.Honey.Value), ["inline"] = false}
-                },
-                ["footer"] = {["text"] = "AuroraSoon Logger System | " .. os.date("%X")}
-            }}
-        }
-        local request = syn and syn.request or http_request or request
-        if request then
-            request({
-                Url = getgenv().Config.Webhook,
-                Method = "POST",
-                Headers = {["Content-Type"] = "application/json"},
-                Body = HttpService:JSONEncode(data)
-            })
-        end
-    end)
-end
-
--- Запускаем логгер при старте
-SendLog()
-
--- // ЛОГИКА СБОРА ТОКЕНОВ //
+-- // ЛОГИКА СБОРА ТОКЕНОВ (МАГНИТ) //
 spawn(function()
-    while task.wait(0.01) do
+    while task.wait(0.1) do
         if getgenv().Config.Enabled and getgenv().Config.CollectTokens then
             pcall(function()
                 for _, v in pairs(game.Workspace.Collectibles:GetChildren()) do
                     if v:IsA("Part") then
-                        -- Притягиваем все жетоны к персонажу
-                        v.CFrame = Player.Character.HumanoidRootPart.CFrame
+                        local mag = (v.Position - Character.HumanoidRootPart.Position).Magnitude
+                        if mag < 30 then -- Собираем в радиусе 30 шпилек
+                            v.CFrame = Character.HumanoidRootPart.CFrame
+                        end
                     end
                 end
             end)
@@ -65,45 +35,45 @@ spawn(function()
     end
 end)
 
--- // ЛОГИКА БЕСКОНЕЧНОГО ТАПА (AUTO-DIG) //
+-- // ЛОГИКА УДАРОВ ПАЛКОЙ (AUTO-DIG) //
 spawn(function()
-    while task.wait(0.05) do
+    while task.wait(0.01) do
         if getgenv().Config.Enabled and getgenv().Config.AutoDig then
-            local tool = Player.Character:FindFirstChildOfClass("Tool")
+            local tool = Character:FindFirstChildOfClass("Tool")
             if tool then tool:Activate() end
         end
     end
 end)
 
--- // ПАТТЕРН ДВИЖЕНИЯ ПО ПОЛЮ //
+-- // ЛОГИКА УМНОГО ПЕРЕДВИЖЕНИЯ //
 spawn(function()
-    while task.wait(0.1) do
+    while task.wait(0.5) do
         if getgenv().Config.Enabled then
             local zone = game.Workspace.FlowerZones:FindFirstChild(getgenv().Config.SelectedField)
             if zone then
-                for i = 1, 8 do
-                    if not getgenv().Config.Enabled then break end
-                    local angle = i * (math.pi * 2 / 8)
-                    local x = math.cos(angle) * 18
-                    local z = math.sin(angle) * 18
-                    local targetPos = zone.CFrame * CFrame.new(x, 0, z)
-                    
-                    local dist = (Player.Character.HumanoidRootPart.Position - targetPos.Position).Magnitude
-                    local duration = dist / (getgenv().Config.WalkSpeed * 5)
-                    
-                    local tween = TweenService:Create(Player.Character.HumanoidRootPart, TweenInfo.new(duration, Enum.EasingStyle.Linear), {CFrame = targetPos})
-                    tween:Play()
-                    tween.Completed:Wait()
-                end
+                -- Устанавливаем скорость
+                Humanoid.WalkSpeed = getgenv().Config.SpeedValue
+                
+                -- Генерируем случайную точку внутри поля
+                local size = zone.Size
+                local randomX = math.random(-size.X/2.5, size.X/2.5)
+                local randomZ = math.random(-size.Z/2.5, size.Z/2.5)
+                local targetPos = (zone.CFrame * CFrame.new(randomX, 0, randomZ)).Position
+                
+                -- Идем к точке
+                Humanoid:MoveTo(targetPos)
+                
+                -- Ждем пока дойдет или пока не выключим
+                Humanoid.MoveToFinished:Wait()
             end
         end
     end
 end)
 
--- // ГРАФИЧЕСКИЙ ИНТЕРФЕЙС //
+-- // ИНТЕРФЕЙС //
 local Window = Rayfield:CreateWindow({
-    Name = "AuroraSoon | BSS Pro",
-    LoadingTitle = "Atlas Engine V2",
+    Name = "AuroraSoon | BSS Pro Fixed",
+    LoadingTitle = "Atlas Engine V3",
 })
 
 local Tab = Window:CreateTab("Фарм", 4483362458)
@@ -115,40 +85,34 @@ Tab:CreateToggle({
 })
 
 Tab:CreateToggle({
-    Name = "Бесконечно копать (Dig)",
+    Name = "Бить палкой (Auto-Dig)",
     CurrentValue = false,
     Callback = function(v) getgenv().Config.AutoDig = v end
 })
 
 Tab:CreateToggle({
-    Name = "Магнит жетонов (Tokens)",
+    Name = "Собирать все жетоны",
     CurrentValue = false,
     Callback = function(v) getgenv().Config.CollectTokens = v end
 })
 
 Tab:CreateSlider({
-    Name = "Скорость движения",
+    Name = "Скорость (1-10)",
     Range = {1, 10},
     Increment = 1,
     CurrentValue = 5,
-    Callback = function(v) getgenv().Config.WalkSpeed = v end
+    Callback = function(v) 
+        -- Преобразуем 1-10 в реальные значения скорости Roblox (16-80)
+        getgenv().Config.SpeedValue = 16 + (v * 7)
+        Humanoid.WalkSpeed = getgenv().Config.SpeedValue
+    end
 })
 
 Tab:CreateDropdown({
-    Name = "Выбор поля",
-    Options = {"Clover Field", "Dandelion Field", "Pine Tree Forest", "Rose Field", "Coconut Field", "Sunflower Field"},
+    Name = "Поле",
+    Options = {"Clover Field", "Dandelion Field", "Pine Tree Forest", "Rose Field", "Coconut Field", "Sunflower Field", "Spider Field"},
     CurrentOption = {"Clover Field"},
     Callback = function(v) getgenv().Config.SelectedField = v[1] end
 })
 
-local StatsTab = Window:CreateTab("Статистика", 4483362458)
-local HoneyLabel = StatsTab:CreateLabel("Твой мед: " .. tostring(Player.CoreStats.Honey.Value))
-
--- Обновление статистики в реальном времени
-spawn(function()
-    while task.wait(5) do
-        HoneyLabel:Set("Твой мед: " .. tostring(Player.CoreStats.Honey.Value))
-    end
-end)
-
-Rayfield:Notify({Title = "AuroraSoon", Content = "Данные отправлены на сервер. Скрипт готов!", Duration = 5})
+Rayfield:Notify({Title = "AuroraSoon", Content = "Движение исправлено. Теперь персонаж бегает!", Duration = 5})
